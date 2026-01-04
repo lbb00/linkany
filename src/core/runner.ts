@@ -43,7 +43,9 @@ export async function runOperation(input: RunOperationInput): Promise<Result> {
     res = await input.finalize(res)
   }
 
-  res = await tryAppendAuditStep(res, input.manifestPath, input.opts)
+  if (input.opts?.audit !== false) {
+    res = await tryAppendAuditStep(res, input.manifestPath, input.opts)
+  }
 
   logger?.info?.(`[linkany] ${input.operation} ${res.ok ? 'ok' : 'fail'} (${res.durationMs}ms)`)
   return res

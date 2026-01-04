@@ -13,6 +13,7 @@ export async function appendAudit(logPath: string, result: Result) {
 }
 
 export async function tryAppendAuditStep(result: Result, manifestPath?: string, opts?: CommonOptions): Promise<Result> {
+  if (opts?.audit === false) return result
   const logPath = opts?.auditLogPath ?? (manifestPath ? `${path.resolve(manifestPath)}.log.jsonl` : undefined)
   if (!logPath) return result
   try {

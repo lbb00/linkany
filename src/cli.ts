@@ -44,11 +44,12 @@ function hasFlag(args: Argv, names: string[]): boolean {
   return false
 }
 
-function parseCommonOptions(args: Argv): CommonOptions & { auditLogPath?: string } {
+function parseCommonOptions(args: Argv): CommonOptions {
   const dryRun = hasFlag(args, ['--dry-run'])
   const includePlanText = hasFlag(args, ['--plan'])
   const auditLogPath = popFlagValue(args, ['--audit-log'])
-  return { dryRun, includePlanText, auditLogPath }
+  const audit = hasFlag(args, ['--no-audit']) ? false : undefined
+  return { dryRun, includePlanText, auditLogPath, audit }
 }
 
 async function resolveManifestPath(args: Argv): Promise<string> {
@@ -68,10 +69,10 @@ Usage:
   linkany manifest show
   linkany manifest clear
 
-  linkany add --source <path> --target <path> [--kind file|dir] [--atomic|--no-atomic] [-m <manifest>] [--dry-run] [--plan]
-  linkany remove <key> [--keep-link] [-m <manifest>] [--dry-run] [--plan]
-  linkany install [-m <manifest>] [--dry-run] [--plan]
-  linkany uninstall [-m <manifest>] [--dry-run] [--plan]
+  linkany add --source <path> --target <path> [--kind file|dir] [--atomic|--no-atomic] [-m <manifest>] [--dry-run] [--plan] [--no-audit]
+  linkany remove <key> [--keep-link] [-m <manifest>] [--dry-run] [--plan] [--no-audit]
+  linkany install [-m <manifest>] [--dry-run] [--plan] [--no-audit]
+  linkany uninstall [-m <manifest>] [--dry-run] [--plan] [--no-audit]
 `
   process.stdout.write(msg.trimStart())
   process.stdout.write('\n')

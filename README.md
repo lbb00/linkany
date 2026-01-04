@@ -1,69 +1,64 @@
 # linkany
 
-`linkany` 是一个 **macOS/Linux** 上的“安全 symlink 管理器”，围绕一个 `manifest` 文件维护一组“source ↔ target”的链接关系，并提供四个高层 API：
+[English](README.md) | [中文](README.zh-CN.md)
 
-- `add(manifestPath, { source, target, ... })`
-- `remove(manifestPath, key, opts?)`
-- `install(manifestPath, opts?)`
-- `uninstall(manifestPath, opts?)`
+`linkany` is a **safe symlink manager** for **macOS/Linux**. It manages a set of `source ↔ target` symlink mappings via a `manifest` file (or an in-memory manifest), with a strong focus on **safety**, **traceability**, and **refusing risky operations by default**.
 
-它的设计原则是：**安全第一、可追溯、默认拒绝任何可能导致数据丢失的行为**。
+## CLI
 
-## CLI（命令行）
+`linkany` ships both a **library API** and a **CLI**. The CLI supports setting a **global default manifest** so you don’t have to pass `--manifest` every time.
 
-`linkany` 同时提供 **库 API** 与 **CLI**。CLI 的核心设计是：支持设置一个“全局默认 manifest”，让你后续无需重复传 `--manifest`。
+### Set / show default manifest
 
-### 设置/查看默认 manifest
-
-- 设置默认 manifest（写入全局配置，路径会被 resolve 成绝对路径）：
+- Set default manifest (written to global config; path is resolved to an absolute path):
   - `linkany manifest set ./linkany.manifest.json`
-- 查看当前默认 manifest：
+- Show current default manifest:
   - `linkany manifest show`
-- 清空默认 manifest：
+- Clear default manifest:
   - `linkany manifest clear`
 
-### 在命令中使用 manifest（优先级）
+### Manifest resolution priority
 
-- **优先级**：`-m/--manifest <path>`（单次覆盖） > 全局默认 manifest
-- 示例：
-  - 使用默认 manifest：`linkany install`
-  - 单次覆盖：`linkany install -m ./other.manifest.json`
+- **Priority**: `-m/--manifest <path>` (one-off override) > global default manifest
+- Examples:
+  - Use default manifest: `linkany install`
+  - Override once: `linkany install -m ./other.manifest.json`
 
-### 常用命令
+### Common commands
 
-- `linkany add --source <path> --target <path> [--kind file|dir] [--atomic|--no-atomic] [-m <manifest>] [--dry-run] [--plan]`
-- `linkany remove <key> [--keep-link] [-m <manifest>] [--dry-run] [--plan]`
-- `linkany install [-m <manifest>] [--dry-run] [--plan]`
-- `linkany uninstall [-m <manifest>] [--dry-run] [--plan]`
+- `linkany add --source <path> --target <path> [--kind file|dir] [--atomic|--no-atomic] [-m <manifest>] [--dry-run] [--plan] [--no-audit]`
+- `linkany remove <key> [--keep-link] [-m <manifest>] [--dry-run] [--plan] [--no-audit]`
+- `linkany install [-m <manifest>] [--dry-run] [--plan] [--no-audit]`
+- `linkany uninstall [-m <manifest>] [--dry-run] [--plan] [--no-audit]`
 
-### 全局配置文件路径（XDG）
+### Global config path (XDG)
 
-- 若设置了 `XDG_CONFIG_HOME`：`$XDG_CONFIG_HOME/linkany/config.json`
-- 否则：`~/.config/linkany/config.json`
-- 格式：
+- If `XDG_CONFIG_HOME` is set: `$XDG_CONFIG_HOME/linkany/config.json`
+- Otherwise: `~/.config/linkany/config.json`
+- Format:
 
 ```json
 { "manifestPath": "/abs/path/to/manifest.json" }
 ```
 
-## 能力概览
+## Features
 
-- **仅使用 symlink**：如果 symlink 失败（权限/文件系统限制等），直接报错，不会退化为 copy 安装。
-- **文件 & 目录**：同时支持文件和目录链接。
-- **安全策略**：
-  - `add`：当 `source` 和 `target` 同时存在（且 `target` 不是指向 `source` 的 symlink）时 **拒绝**。
-  - `remove/uninstall`：只会删除 `target` 的 symlink，**绝不删除 source**。
-  - `install`：如果发现某个 `target` 存在但不是 symlink，会 **整体 abort**，避免误伤真实文件/目录。
-- **原子性（尽力而为）**：
-  - 创建/替换 symlink 时优先使用 `target.tmp.<rand>`，再 `rename` 到位。
-  - 替换已有 symlink 时会优先把旧 target 移到 `target.bak.<timestamp>.<rand>`（便于恢复）。
-- **审计记录（有记录的）**：每次调用都会把 `Result` 追加写入 JSONL 文件，默认路径为 `${manifestPath}.log.jsonl`。
-- **dry-run / plan 输出**：
-  - `opts.dryRun=true` 时不触发任何文件系统写操作（不 symlink/rename/unlink），只返回计划与结果结构。
-  - `opts.includePlanText=true` 时会在 `Result.planText` 中附带可读的 plan 文本。
-- **rollback 协议（best-effort）**：`Result.rollbackSteps` 会尽力给出“可逆步骤”的回滚计划（例如 move/symlink 的逆操作）。目前是协议与数据结构，未提供一键 rollback API。
+- **Symlink-only**: if symlink creation fails (permissions/filesystem), it errors; no “copy fallback”.
+- **Files & directories**: supports both.
+- **Safety rules**:
+  - `add`: refuses when `source` and `target` both exist and `target` is not already a symlink to `source`.
+  - `remove/uninstall`: only removes the target symlink; **never deletes sources**.
+  - `install`: if any `target` exists but is not a symlink, it **aborts the entire run** to avoid harming real files/dirs.
+- **Atomic (best-effort)**:
+  - Creates/replaces symlinks via `target.tmp.<rand>` then `rename` into place.
+  - When replacing an existing symlink, it first moves the old target to `target.bak.<timestamp>.<rand>` (easier recovery).
+- **Audit log (optional)**: appends each operation’s `Result` to a JSONL file (default `${manifestPath}.log.jsonl`), unless disabled.
+- **dry-run / plan**:
+  - `opts.dryRun=true` performs no filesystem writes.
+  - `opts.includePlanText=true` returns a human-readable plan in `Result.planText`.
+- **Rollback protocol (best-effort)**: `Result.rollbackSteps` contains a best-effort reverse plan (protocol/data only; no one-shot rollback API yet).
 
-## Manifest 格式（v1）
+## Manifest format (v1)
 
 ```json
 {
@@ -80,93 +75,95 @@
 }
 ```
 
-说明：
+Notes:
 
-- `source/target` 支持绝对路径或相对路径；相对路径以 **manifest 文件所在目录** 为基准。
-- `id` 可选；如果没有 `id`，内部默认以 `target` 作为该条目的 identity（用于 remove）。
-- `kind` 可选：`file | dir`。不写时，`add` 会尽力推断；`install` 会从 source 的实际类型推断。
-- `atomic` 默认 `true`。
-- 允许存在额外字段（`linkany` 会尽量保留并写回）。
+- `source/target` can be absolute or relative; relative paths are resolved against the **manifest file directory**.
+- `id` is optional. If absent, `target` is used as the entry identity (e.g., for `remove`).
+- `kind` is optional: `file | dir`. If omitted, `add` tries to infer; `install` infers from the actual source.
+- `atomic` defaults to `true`.
+- Extra fields are allowed and preserved on write-back.
 
 ## API
 
-`linkany` 的 API 支持两种输入方式，合并为同一个入口：
+All 4 core APIs accept `manifest` in two forms:
 
-- **文件模式**：`manifest` 传入 manifest 文件路径（string）
-- **in-memory 模式**：`manifest` 直接传入 manifest JSON/对象
+- **File mode**: `manifest` is a manifest file path (`string`)
+- **In-memory mode**: `manifest` is a manifest JSON/object
 
-四个核心 API 的返回值统一为：
+All 4 core APIs return:
 
-- `{ result, manifest }`（`result` 为本次操作结果，`manifest` 为操作后的 manifest 对象）
+- `{ result, manifest }` where `result` is the operation result and `manifest` is the updated manifest object.
 
 ### `add(manifest, { source, target, kind?, atomic? }, opts?)`
 
-用途：把一条映射写入 manifest，并把 `target` 收敛为指向 `source` 的 symlink。
+Writes/updates a mapping in the manifest and converges `target` to `symlink(source)`.
 
-核心语义：
+Key semantics:
 
-- **source 不存在**：自动创建空 source（文件：空文件；目录：空目录）。
-- **target 已存在且不是 symlink、source 不存在**：会执行一次“安全迁移”：
+- If `source` is missing: creates an empty source (file: empty file; dir: empty dir).
+- If `target` exists and is not a symlink while `source` is missing: performs a safe migration:
   - copy `target -> source`
-  - 将原 `target` 移到 `target.bak.<timestamp>.<rand>`
-  - 再把 `target` 改成指向 `source` 的 symlink
-- **source 与 target 同时存在**：拒绝（error），要求用户手动处理冲突。
+  - move original `target` to `target.bak.<timestamp>.<rand>`
+  - then make `target` a symlink to `source`
+- If `source` and `target` both exist: refuses with an error (requires manual conflict resolution).
 
 ### `remove(manifest, key, opts?)`
 
-用途：从 manifest 移除一条映射，并且 **默认删除 target 的 symlink**。
+Removes a mapping from the manifest and by default deletes the **target symlink**.
 
-- `key`：优先匹配 `id`，否则匹配 `target`。
-- `opts.keepLink=true` 可仅移除 manifest 记录，不删除 target symlink。
-- **永远不删除 source**。
+- `key`: matches `id` first, then `target`.
+- `opts.keepLink=true` removes the manifest entry only (does not delete the symlink).
+- Never deletes sources.
 
 ### `install(manifest, opts?)`
 
-用途：按 manifest 全量落地，确保每个 `target` 都是指向 `source` 的 symlink。
+Applies all entries: ensures each `target` is a symlink pointing to `source`.
 
-安全策略：
+Safety:
 
-- 任意一条出现以下情况，都会 **abort 且不做任何变更**：
-  - source 不存在
-  - target 存在但不是 symlink
+- Aborts without changes if any:
+  - source is missing
+  - target exists but is not a symlink
 
 ### `uninstall(manifest, opts?)`
 
-用途：按 manifest 全量撤销，只删除 `target` 的 symlink；**永远不删除 source**。
+Removes all target symlinks listed in the manifest; never deletes sources.
 
-### in-memory 模式的额外 options
+### In-memory mode: extra options
 
-当 `manifest` 传入 JSON/对象（而不是路径）时，`opts` 额外支持：
+When `manifest` is a JSON/object, `opts` also supports:
 
-- `baseDir?: string`：用于解析相对路径（默认 `process.cwd()`）
-- `manifestPath?: string`：仅用于 `Result.manifestPath` 与 audit 默认路径推导（不会触发读写 manifest 文件）
+- `baseDir?: string` (default: `process.cwd()`) for resolving relative paths
+- `manifestPath?: string` for `Result.manifestPath` and audit default-path derivation only (does not read/write manifest files)
 
-## 审计日志（Audit Log）
+## Audit log
 
-- 默认写入：`${manifestPath}.log.jsonl`
-- 每行是一条 JSON（完整 `Result`），包含：执行步骤、错误、耗时、变更摘要。
-- 可通过 `opts.auditLogPath` 指定自定义路径。
+- Default path: `${manifestPath}.log.jsonl`
+- Each line is one JSON object (a full `Result`), including steps, errors, duration, change summary.
+- Customize with `opts.auditLogPath`.
+- Disable completely (caller handles logging): `opts.audit=false` (CLI: `--no-audit`).
 
-## Options（opts）
+## Options (opts)
 
-适用于四个 API 的通用 options（`CommonOptions`）：
+Common options (`CommonOptions`) for all APIs:
 
-- `auditLogPath?: string`：覆盖默认审计日志路径。
-- `dryRun?: boolean`：只返回计划/结果，不写文件系统。
-- `includePlanText?: boolean`：在 `Result.planText` 中包含可读 plan 文本。
-- `logger?: { info/warn/error }`：注入日志实现（可选）。
+- `audit?: boolean` (default: true)
+- `auditLogPath?: string`
+- `dryRun?: boolean`
+- `includePlanText?: boolean`
+- `logger?: { info/warn/error }`
 
-## 目录结构（维护者）
+## Project layout
 
 ```text
 src/
-  api/        # 4 个对外操作，分别一个文件
-  core/       # 执行引擎：plan/apply/fs/audit/runner/backup
-  manifest/   # manifest 类型与读写（写回保持未知字段）
-  cli/        # CLI 相关模块（全局配置等）
-  cli.ts      # CLI 入口（argv 解析与命令分发）
-  index.ts    # 对外统一导出
-  types.ts    # 公共类型（Result/Step/Options）
+  api/        # high-level operations
+  core/       # plan/apply/fs/audit/runner/backup
+  manifest/   # manifest types and IO
+  cli/        # CLI helpers (global config)
+  cli.ts      # CLI entrypoint (argv parsing & dispatch)
+  index.ts    # public exports
+  types.ts    # shared types (Result/Step/Options)
 ```
 
-更详细的维护说明见 `KNOWLEDGE_BASE.md`。
+More maintainer notes: `KNOWLEDGE_BASE.md`.

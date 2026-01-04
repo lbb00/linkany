@@ -73,6 +73,49 @@ src/
 - `core/*`：只做可复用的执行/工具能力（plan/apply/fs/audit）。
 - `manifest/*`：只负责结构、解析、读写与稳定写回。
 
+## 3.1 Execution Flow (Mermaid)
+
+```mermaid
+flowchart TD
+  CLI[CLI_src_cli_ts] -->|parse_argv| Cmd{command}
+  Cmd -->|manifest_set_show_clear| GlobalCfg[src_cli_config_ts]
+  Cmd -->|add_remove_install_uninstall| API[src_api]
+
+  API --> Input{manifest_input_type}
+  Input -->|string_path| LoadDisk[src_manifest_types_ts_loadManifest]
+  Input -->|json_object| Normalize[src_manifest_types_ts_normalizeManifest]
+
+  LoadDisk --> BaseDir1[getManifestBaseDir]
+  Normalize --> BaseDir2[baseDir_or_cwd]
+
+  BaseDir1 --> ResolveEntries1[resolveEntry_and_mapping_paths]
+  BaseDir2 --> ResolveEntries2[resolveEntry_and_mapping_paths]
+
+  ResolveEntries1 --> Plan[core_plan_build_Step_list]
+  ResolveEntries2 --> Plan
+
+  Plan --> Run[core_runner_runOperation]
+  Run --> Apply[core_apply_applyPlan]
+  Apply --> Finalize{finalize_hook}
+
+  Finalize -->|path_mode| WriteManifest[manifest_io_saveManifest]
+  Finalize -->|inmemory_mode| SkipWrite[write_manifest_step_skipped]
+
+  Finalize --> AuditGate{opts_audit_is_false}
+  AuditGate -->|false_or_undefined| AuditPath{logPath_available}
+  AuditGate -->|true| NoAudit[skip_audit]
+  AuditPath -->|yes| AppendAudit[core_audit_appendAudit_JSONL]
+  AuditPath -->|no| NoAudit
+
+  AppendAudit --> Result[Result_with_steps_changes_errors]
+  NoAudit --> Result
+  WriteManifest --> Result
+  SkipWrite --> Result
+
+  Apply --> Rollback[build_rollbackSteps_from_undo]
+  Rollback --> Result
+```
+
 ## 4. Manifest v1
 
 在 `src/manifest/types.ts` 定义与校验。
@@ -145,6 +188,10 @@ src/
 
 - 默认路径：`${manifestPath}.log.jsonl`
 - 写入内容：完整 `Result`（一行一条 JSON）
+
+可选行为：
+
+- 若调用方希望完全关闭审计写入（自行处理日志/追踪），可传 `opts.audit=false`，此时不会产生任何 `audit` step，也不会触发文件写入。
 
 Result 设计要点：
 

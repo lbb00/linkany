@@ -68,6 +68,13 @@ export interface Logger {
 
 export interface CommonOptions {
   /**
+   * Whether to append an audit log entry for this operation.
+   * Default: true.
+   *
+   * Set to false if the caller wants to fully disable audit logging and handle it themselves.
+   */
+  audit?: boolean
+  /**
    * If provided, we append one JSON line per operation (Result summary).
    * Default strategy (V1): `${manifestPath}.log.jsonl` when manifestPath is known.
    */
