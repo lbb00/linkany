@@ -149,8 +149,8 @@ export async function planUnlink(spec: UnlinkSpec): Promise<Step[]> {
 
 export async function planUnlinkWithFS(fs: FS, spec: UnlinkSpec): Promise<Step[]> {
   const steps: Step[] = []
-  if (!await fs.pathExists(spec.targetAbs)) return steps
-  const st = await fs.lstat(spec.targetAbs)
+  const st = await fs.lstat(spec.targetAbs).catch(() => null)
+  if (!st) return steps
   if (!st.isSymbolicLink()) {
     steps.push({
       kind: 'noop',
@@ -192,5 +192,4 @@ export async function planCopy(spec: CopySpec): Promise<Step[]> {
 
   return steps
 }
-
 
